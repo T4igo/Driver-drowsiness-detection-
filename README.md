@@ -13,7 +13,7 @@ This project utilizes a custom-trained **EfficientNet-B0** model for image-based
 
 ## 🌐 Live Demo
 
-👉 https://t4igo.github.io/Driver-drowsiness-detection/
+👉 https://t4igo.github.io/Driver-drowsiness-detection-/
 
 ---
 
