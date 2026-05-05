@@ -1,8 +1,19 @@
 # 🚗 Driver Drowsiness Detection System
 
+![Python](https://img.shields.io/badge/Python-3.x-blue)
+![OpenCV](https://img.shields.io/badge/OpenCV-Enabled-green)
+![Status](https://img.shields.io/badge/Status-Completed-brightgreen)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
 A professional, real-time dual-mode driver drowsiness detection system designed to prevent accidents by monitoring driver alertness.
 
 This project utilizes a custom-trained **EfficientNet-B0** model for image-based drowsiness classification, paired with **MediaPipe FaceMesh** for precise Eye Aspect Ratio (EAR) calculations.
+
+---
+
+## 🌐 Live Demo
+
+👉 https://t4igo.github.io/Driver-drowsiness-detection/
 
 ---
 
@@ -11,7 +22,7 @@ This project utilizes a custom-trained **EfficientNet-B0** model for image-based
 * **Dual-Mode Detection**: Combines Deep Learning (EfficientNet-B0) and facial landmark geometry (EAR) for robust performance.
 * **Auto-Calibration**: Automatically measures your personal baseline "open eye" state for highly accurate thresholds.
 * **Car Dashboard GUI**: Premium OpenCV-based dashboard with real-time stats and alerts (`src/drowsiness_demo.py`).
-* **Web Interface**: Lightweight browser-based version using MediaPipe (`src/drowsiness_web.html`).
+* **Web Interface**: Lightweight browser-based version using MediaPipe (`index.html`).
 * **Audio Alerts**: Triggers visual + sound alerts when drowsiness is detected.
 
 ---
@@ -63,17 +74,11 @@ python src/drowsiness_inference.py
 
 ---
 
-### 3. Web Application
+### 3. Web Application (Live Demo)
 
-```bash
-python -m http.server
-```
+No setup required — runs directly in browser:
 
-Open:
-
-```
-http://localhost:8000/src/drowsiness_web.html
-```
+👉 https://t4igo.github.io/Driver-drowsiness-detection/
 
 ---
 
@@ -127,6 +132,7 @@ Driver-Drowsiness-Detection/
 │   ├── gradcam.png
 │   └── training_curves.png
 │
+├── index.html
 ├── requirements.txt
 ├── README.md
 └── LICENSE
