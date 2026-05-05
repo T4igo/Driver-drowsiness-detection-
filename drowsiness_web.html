@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Monitoring System</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Share+Tech+Mono&family=Rajdhani:wght@500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --bg: #0d0f13;
+            --panel: #13161d;
+            --border: #1e2530;
+            --accent: #00c8ff;
+            --green: #2ed87a;
+            --red: #e03232;
+            --orange: #ff9f1a;
+            --white: #d8dde6;
+            --grey: #4a5568;
+            --dark-red: #3d0e0e;
+            --yellow: #ffe033;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: var(--bg);
+            color: var(--white);
+            font-family: 'Rajdhani', sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* ── OVERLAYS ── */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 300;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .overlay.hidden {
+            display: none;
+        }
+
+        /* Start screen */
+        #start-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 26px;
+            font-weight: 900;
+            color: var(--accent);
+            letter-spacing: 4px;
+            text-align: center;
+        }
+
+        #start-sub {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 15px;
+            color: var(--grey);
+            letter-spacing: 1px;
+            text-align: center;
+            line-height: 1.6;
+            max-width: 420px;
+        }
+
+        #start-btn {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 14px 44px;
+            cursor: pointer;
+            letter-spacing: 3px;
+            transition: opacity .2s;
+        }
+
+        #start-btn:hover {
+            opacity: .8;
+        }
+
+        /* Calibration */
+        #cal-box {
+            background: var(--panel);
+            border: 2px solid var(--accent);
+            padding: 36px 56px;
+            text-align: center;
+            width: 460px;
+        }
+
+        #cal-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--accent);
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+
+        #cal-instr {
+            font-size: 16px;
+            color: var(--white);
+            margin-bottom: 6px;
+        }
+
+        #cal-timer {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 36px;
+            color: var(--white);
+            margin: 10px 0;
+        }
+
+        #cal-bar-bg {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            margin-bottom: 6px;
+        }
+
+        #cal-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width .1s linear;
+        }
+
+        #skip-btn {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 13px;
+            color: var(--grey);
+            border: 1px solid var(--grey);
+            background: none;
+            padding: 7px 18px;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: color .2s, border-color .2s;
+        }
+
+        #skip-btn:hover {
+            color: var(--white);
+            border-color: var(--white);
+        }
+
+        /* ── ALARM OVERLAY ── */
+        #alarm-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            pointer-events: none;
+            display: none;
+        }
+
+        #alarm-overlay.on {
+            display: block;
+        }
+
+        #alarm-border {
+            position: absolute;
+            inset: 0;
+            border: 14px solid var(--red);
+            animation: borderPulse .45s ease-in-out infinite alternate;
+        }
+
+        @keyframes borderPulse {
+            from {
+                opacity: .4;
+                border-width: 10px;
+            }
+
+            to {
+                opacity: 1;
+                border-width: 20px;
+            }
+        }
+
+        #alarm-tri {
+            position: absolute;
+            top: 60px;
+            right: 28px;
+            width: 90px;
+            height: 82px;
+        }
+
+        #alarm-lbl {
+            position: absolute;
+            top: 155px;
+            right: 18px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--red);
+            letter-spacing: 1px;
+            text-align: center;
+            width: 90px;
+        }
+
+        #wake-banner {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            transform: translateY(-50%);
+            text-align: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 46px;
+            font-weight: 900;
+            color: var(--yellow);
+            text-shadow: 0 0 30px rgba(255, 224, 51, .9), 0 0 60px rgba(224, 50, 50, .6);
+            letter-spacing: 8px;
+            animation: wakeFlash .45s ease-in-out infinite alternate;
+        }
+
+        @keyframes wakeFlash {
+            from {
+                opacity: .2;
+                transform: translateY(-50%) scale(.97);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(-50%) scale(1.03);
+            }
+        }
+
+        /* ── APP SHELL ── */
+        #app {
+            display: grid;
+            grid-template-rows: 52px 1fr 30px;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Top bar */
+        #topbar {
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+        }
+
+        #topbar .brand {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 2px;
+        }
+
+        #topbar .meta {
+            display: flex;
+            gap: 20px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            color: var(--grey);
+        }
+
+        /* Main grid */
+        #main {
+            display: grid;
+            grid-template-columns: 688px 1fr;
+            gap: 16px;
+            padding: 12px 24px;
+            overflow: hidden;
+        }
+
+        /* Left panel */
+        #left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #cam-wrap {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            border: 2px solid var(--green);
+            flex-shrink: 0;
+            transition: border-color .2s;
+        }
+
+        #cam-wrap.alert {
+            border-color: var(--red);
+        }
+
+        #videoEl {
+            display: none;
+        }
+
+        #camCanvas {
+            display: block;
+            width: 640px;
+            height: 480px;
+        }
+
+        .cam-tag {
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: rgba(13, 15, 19, .87);
+            padding: 4px 12px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--accent);
+            letter-spacing: 1px;
+        }
+
+        #status-badge {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            height: 54px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #status-text {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: 3px;
+            color: var(--green);
+            transition: color .2s;
+        }
+
+        #status-text.alert {
+            color: var(--red);
+        }
+
+        /* Right panel */
+        #right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+        }
+
+        #arc-wrap {
+            display: flex;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        #arcCanvas {
+            display: block;
+        }
+
+        #stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .sbox {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            padding: 8px 6px 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+        }
+
+        .slabel {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--grey);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .sval {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 17px;
+            color: var(--green);
+            transition: color .2s;
+        }
+
+        .sval.r {
+            color: var(--red);
+        }
+
+        .sval.o {
+            color: var(--orange);
+        }
+
+        #graph-wrap {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        #graph-lbl {
+            position: absolute;
+            top: 5px;
+            left: 8px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--grey);
+            letter-spacing: 1px;
+        }
+
+        #graphCanvas {
+            display: block;
+            width: 100%;
+        }
+
+        #log-wrap {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            padding: 8px 12px;
+        }
+
+        #log-title {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--grey);
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        #log-list {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .log-row {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--grey);
+        }
+
+        .log-row.new {
+            color: var(--orange);
+        }
+
+        /* Bottom bar */
+        #bottombar {
+            background: var(--panel);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--grey);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ── START OVERLAY ── -->
+    <div class="overlay" id="start-overlay">
+        <div id="start-title">◈ DRIVER MONITORING SYSTEM</div>
+        <div id="start-sub">
+            Real-time drowsiness detection via MediaPipe FaceMesh<br>
+            Eye Aspect Ratio (EAR) + Web Audio alarm<br><br>
+            <span style="color:var(--orange);font-size:13px;">⚠ Run via local server if webcam doesn't start:<br><code
+                    style="color:var(--accent)">python -m http.server</code> → open localhost:8000</span>
+        </div>
+        <button id="start-btn" onclick="startSystem()">▶ START MONITORING</button>
+    </div>
+
+    <!-- ── CALIBRATION OVERLAY ── -->
+    <div class="overlay hidden" id="cal-overlay">
+        <div id="cal-box">
+            <div id="cal-title">CALIBRATION</div>
+            <div id="cal-instr">Keep eyes <strong style="color:var(--accent)">WIDE OPEN</strong></div>
+            <div id="cal-timer">3.0s</div>
+            <div id="cal-bar-bg">
+                <div id="cal-bar-fill"></div>
+            </div>
+        </div>
+        <button id="skip-btn" onclick="skipCal()">SKIP CALIBRATION</button>
+    </div>
+
+    <!-- ── ALARM OVERLAY ── -->
+    <div id="alarm-overlay">
+        <div id="alarm-border"></div>
+        <svg id="alarm-tri" viewBox="0 0 90 82" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <filter id="glo">
+                    <feGaussianBlur stdDeviation="3" result="b" />
+                    <feMerge>
+                        <feMergeNode in="b" />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+            </defs>
+            <polygon points="45,3 3,79 87,79" fill="#ff9f1a" stroke="rgba(255,255,255,0.9)" stroke-width="2"
+                filter="url(#glo)" />
+            <text x="45" y="70" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="40" font-weight="900"
+                fill="#111">!</text>
+            <text x="45" y="70" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="40" font-weight="900"
+                fill="white" opacity=".9">!</text>
+        </svg>
+        <div id="alarm-lbl">DROWSY ALERT</div>
+        <div id="wake-banner">WAKE UP!</div>
+    </div>
+
+    <!-- ── MAIN APP ── -->
+    <div id="app">
+        <div id="topbar">
+            <div class="brand">◈ DRIVER MONITORING SYSTEM</div>
+            <div class="meta">
+                <span id="sess-disp">SESSION 00:00</span>
+                <span id="fps-disp">FPS --</span>
+            </div>
+        </div>
+
+        <div id="main">
+            <!-- LEFT -->
+            <div id="left-panel">
+                <div id="cam-wrap">
+                    <video id="videoEl" playsinline></video>
+                    <canvas id="camCanvas" width="640" height="480"></canvas>
+                    <div class="cam-tag">● LIVE FEED</div>
+                </div>
+                <div id="status-badge">
+                    <div id="status-text">DRIVER ALERT</div>
+                </div>
+            </div>
+
+            <!-- RIGHT -->
+            <div id="right-panel">
+                <div id="arc-wrap">
+                    <canvas id="arcCanvas" width="210" height="210"></canvas>
+                </div>
+                <div id="stats-row">
+                    <div class="sbox">
+                        <div class="slabel">EAR</div>
+                        <div class="sval" id="sv-ear">---</div>
+                    </div>
+                    <div class="sbox">
+                        <div class="slabel">STATUS</div>
+                        <div class="sval" id="sv-status">AWAKE</div>
+                    </div>
+                    <div class="sbox">
+                        <div class="slabel">ALERTS</div>
+                        <div class="sval o" id="sv-alerts">0</div>
+                    </div>
+                </div>
+                <div id="graph-wrap">
+                    <div id="graph-lbl">EAR HISTORY</div>
+                    <canvas id="graphCanvas" height="90"></canvas>
+                </div>
+                <div id="log-wrap">
+                    <div id="log-title">ALERT LOG</div>
+                    <div id="log-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="bottombar">
+            <span>MediaPipe FaceMesh | EAR Detection | Web Audio Alarm</span>
+            <span>Press ESC to stop alarm</span>
+        </div>
+    </div>
+
+    <script>
+        // ── CONSTANTS ──────────────────────────────────────────────────────────────
+        const LEFT_EYE = [362, 385, 387, 263, 373, 380];
+        const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
+        const ALERT_SECS = 2.0;
+        const CAL_SECS = 3.0;
+
+        // ── STATE ──────────────────────────────────────────────────────────────────
+        let earBuf = [];
+        let earHist = new Array(120).fill(0.25);
+        let earThresh = 0.22;
+        let drowsyStart = null;
+        let totalAlerts = 0;
+        let alertLog = [];
+        let sessStart = null;
+        let isCalib = false;
+        let calSamples = [];
+        let calStart = null;
+        let alarmOn = false;
+        let alarmTid = null;
+        let alarmPhase = 0;
+        let audioCtx = null;
+        let lastTime = performance.now();
+        let fps = 0;
+        let alertLogged = false;
+
+        // ── AUDIO ──────────────────────────────────────────────────────────────────
+        function getAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            return audioCtx;
+        }
+        function beep(freq, dur) {
+            try {
+                const c = getAudio(), o = c.createOscillator(), g = c.createGain();
+                o.connect(g); g.connect(c.destination);
+                o.type = 'sine'; o.frequency.value = freq;
+                g.gain.setValueAtTime(0.75, c.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+                o.start(c.currentTime); o.stop(c.currentTime + dur + 0.05);
+            } catch (e) { }
+        }
+        function startAlarm() {
+            if (alarmOn) return;
+            alarmOn = true;
+            const freqs = [960, 620];
+            function tick() {
+                if (!alarmOn) return;
+                beep(freqs[alarmPhase % 2], 0.35);
+                alarmPhase++;
+                alarmTid = setTimeout(tick, 420);
+            }
+            tick();
+        }
+        function stopAlarm() {
+            alarmOn = false; alarmPhase = 0;
+            if (alarmTid) { clearTimeout(alarmTid); alarmTid = null; }
+            document.getElementById('alarm-overlay').classList.remove('on');
+        }
+
+        // ── EAR ───────────────────────────────────────────────────────────────────
+        function d2(a, b, w, h) { return Math.hypot((a.x - b.x) * w, (a.y - b.y) * h); }
+        function calcEAR(lm, idx, w, h) {
+            const p = idx.map(i => lm[i]);
+            return (d2(p[1], p[5], w, h) + d2(p[2], p[4], w, h)) / (2 * d2(p[0], p[3], w, h) + 1e-6);
+        }
+
+        // ── DRAW: VIDEO + FACE DOTS ───────────────────────────────────────────────
+        function drawCam(img, lm, isDrowsy) {
+            const c = document.getElementById('camCanvas');
+            const x = c.getContext('2d');
+            x.drawImage(img, 0, 0, 640, 480);
+            if (lm) {
+                const col = isDrowsy ? '#e03232' : '#2ed87a';
+                for (const i of [...LEFT_EYE, ...RIGHT_EYE]) {
+                    x.beginPath(); x.arc(lm[i].x * 640, lm[i].y * 480, 2.5, 0, Math.PI * 2);
+                    x.fillStyle = col; x.fill();
+                }
+                // Subtle face mesh connection on eyes
+                x.strokeStyle = col + '88'; x.lineWidth = 1;
+                for (const idx of [LEFT_EYE, RIGHT_EYE]) {
+                    x.beginPath();
+                    idx.forEach((i, n) => {
+                        const pt = lm[i];
+                        n === 0 ? x.moveTo(pt.x * 640, pt.y * 480) : x.lineTo(pt.x * 640, pt.y * 480);
+                    });
+                    x.closePath(); x.stroke();
+                }
+            }
+        }
+
+        // ── DRAW: ARC METER ───────────────────────────────────────────────────────
+        function drawArc(pct, secs) {
+            const c = document.getElementById('arcCanvas');
+            const x = c.getContext('2d');
+            const cx = 105, cy = 105, r = 80;
+            x.clearRect(0, 0, 210, 210);
+
+            // BG ring
+            x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2);
+            x.strokeStyle = '#1e2530'; x.lineWidth = 10; x.stroke();
+
+            // Progress arc
+            if (pct > 0) {
+                const col = pct >= 1 ? '#e03232' : (pct > .3 ? '#ff9f1a' : '#2ed87a');
+                x.beginPath();
+                x.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
+                x.strokeStyle = col; x.lineWidth = 10; x.lineCap = 'round'; x.stroke();
+
+                // Pulsing outer ring when full
+                if (pct >= 1) {
+                    const p = .5 + .5 * Math.abs(Math.sin(Date.now() / 200));
+                    x.beginPath(); x.arc(cx, cy, r + 13, 0, Math.PI * 2);
+                    x.strokeStyle = `rgba(224,50,50,${p * .85})`;
+                    x.lineWidth = Math.round(p * 6 + 1); x.stroke();
+                }
+            }
+
+            // Center text
+            const col2 = pct >= 1 ? '#e03232' : (pct > .3 ? '#ff9f1a' : '#2ed87a');
+            x.fillStyle = col2;
+            x.font = 'bold 26px "Share Tech Mono",monospace';
+            x.textAlign = 'center';
+            x.fillText(secs.toFixed(1) + 's', cx, cy + 9);
+
+            x.fillStyle = '#4a5568';
+            x.font = '10px "Rajdhani",sans-serif';
+            x.letterSpacing = '1px';
+            x.fillText('DROWSY TIMER', cx, cy + 28);
+        }
+
+        // ── DRAW: EAR GRAPH ───────────────────────────────────────────────────────
+        function drawGraph() {
+            const c = document.getElementById('graphCanvas');
+            const w = c.width, h = c.height;
+            const x = c.getContext('2d');
+            x.clearRect(0, 0, w, h);
+
+            const mn = .10, mx = .40;
+            if (earHist.length > 2) {
+                for (let i = 1; i < earHist.length; i++) {
+                    const x1 = (i - 1) / 120 * w, x2 = i / 120 * w;
+                    const y1 = Math.max(1, Math.min(h - 1, h - (earHist[i - 1] - mn) / (mx - mn) * h));
+                    const y2 = Math.max(1, Math.min(h - 1, h - (earHist[i] - mn) / (mx - mn) * h));
+                    x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2);
+                    x.strokeStyle = earHist[i] < earThresh ? '#e03232' : '#2ed87a';
+                    x.lineWidth = 1.5; x.stroke();
+                }
+            }
+
+            // Threshold line
+            const ty = Math.max(1, Math.min(h - 1, h - (earThresh - mn) / (mx - mn) * h));
+            x.beginPath(); x.moveTo(0, ty); x.lineTo(w, ty);
+            x.strokeStyle = '#ff9f1a'; x.lineWidth = 1; x.setLineDash([4, 3]); x.stroke();
+            x.setLineDash([]);
+            x.fillStyle = '#ff9f1a'; x.font = '9px "Share Tech Mono",monospace';
+            x.textAlign = 'left'; x.fillText('THRESH', 4, ty - 3);
+        }
+
+        // ── UPDATE UI ─────────────────────────────────────────────────────────────
+        function updateUI(isDrowsy, drowsySecs, earVal) {
+            // Status
+            const st = document.getElementById('status-text');
+            const cw = document.getElementById('cam-wrap');
+            st.textContent = isDrowsy ? 'DROWSINESS DETECTED' : 'DRIVER ALERT';
+            st.className = isDrowsy ? 'alert' : '';
+            cw.className = isDrowsy ? 'alert' : '';
+
+            // Stat boxes
+            const earEl = document.getElementById('sv-ear');
+            earEl.textContent = earVal >= 0 ? earVal.toFixed(3) : '---';
+            earEl.className = 'sval' + (isDrowsy ? ' r' : '');
+
+            const ssEl = document.getElementById('sv-status');
+            ssEl.textContent = isDrowsy ? 'DROWSY' : 'AWAKE';
+            ssEl.className = 'sval' + (isDrowsy ? ' r' : '');
+
+            document.getElementById('sv-alerts').textContent = totalAlerts;
+
+            // Arc
+            const pct = isDrowsy ? Math.min(drowsySecs / ALERT_SECS, 1.0) : 0;
+            drawArc(pct, drowsySecs);
+
+            // Graph
+            drawGraph();
+
+            // Alarm overlay
+            const ao = document.getElementById('alarm-overlay');
+            drowsySecs >= ALERT_SECS ? ao.classList.add('on') : ao.classList.remove('on');
+
+            // Log
+            const ll = document.getElementById('log-list');
+            ll.innerHTML = '';
+            [...alertLog].reverse().slice(0, 5).forEach((e, i) => {
+                const d = document.createElement('div');
+                d.className = 'log-row' + (i === 0 ? ' new' : '');
+                d.textContent = e; ll.appendChild(d);
+            });
+
+            // Top bar
+            const el = (Date.now() - sessStart) / 1000;
+            const m = Math.floor(el / 60).toString().padStart(2, '0');
+            const s = Math.floor(el % 60).toString().padStart(2, '0');
+            document.getElementById('sess-disp').textContent = `SESSION ${m}:${s}`;
+            document.getElementById('fps-disp').textContent = `FPS ${Math.round(fps)}`;
+        }
+
+        // ── CALIBRATION ───────────────────────────────────────────────────────────
+        function startCal() {
+            isCalib = true; calSamples = []; calStart = Date.now();
+            document.getElementById('cal-overlay').classList.remove('hidden');
+            function tick() {
+                if (!isCalib) return;
+                const el = (Date.now() - calStart) / 1000;
+                const rem = Math.max(0, CAL_SECS - el);
+                document.getElementById('cal-timer').textContent = rem.toFixed(1) + 's';
+                document.getElementById('cal-bar-fill').style.width = (el / CAL_SECS * 100).toFixed(1) + '%';
+                if (el >= CAL_SECS) { finishCal(); } else { requestAnimationFrame(tick); }
+            }
+            requestAnimationFrame(tick);
+        }
+        function finishCal() {
+            isCalib = false;
+            document.getElementById('cal-overlay').classList.add('hidden');
+            if (calSamples.length >= 5) {
+                const base = calSamples.reduce((a, b) => a + b, 0) / calSamples.length;
+                earThresh = parseFloat((base * .78).toFixed(3));
+                console.log(`✅ Calibrated — baseline:${base.toFixed(3)}, threshold:${earThresh}`);
+            } else {
+                earThresh = 0.22;
+                console.log('⚠️ Calibration insufficient — using default 0.22');
+            }
+        }
+        function skipCal() {
+            isCalib = false; earThresh = 0.22;
+            document.getElementById('cal-overlay').classList.add('hidden');
+        }
+
+        // ── MEDIAPIPE INIT ────────────────────────────────────────────────────────
+        function initMP() {
+            const video = document.getElementById('videoEl');
+
+            const fm = new FaceMesh({
+                locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+            });
+            fm.setOptions({
+                maxNumFaces: 1, refineLandmarks: true,
+                minDetectionConfidence: 0.5, minTrackingConfidence: 0.5
+            });
+
+            fm.onResults(res => {
+                const now = performance.now();
+                fps = 1000 / Math.max(now - lastTime, 1); lastTime = now;
+
+                const lm = res.multiFaceLandmarks?.[0];
+                let earVal = -1, isDrowsy = false;
+
+                if (lm) {
+                    const l = calcEAR(lm, LEFT_EYE, 640, 480);
+                    const r = calcEAR(lm, RIGHT_EYE, 640, 480);
+                    earVal = (l + r) / 2;
+                    earBuf.push(earVal);
+                    if (earBuf.length > 6) earBuf.shift();
+                    const smooth = earBuf.reduce((a, b) => a + b, 0) / earBuf.length;
+                    earHist.push(smooth);
+                    if (earHist.length > 120) earHist.shift();
+                    if (isCalib) calSamples.push(earVal);
+                    if (smooth < earThresh) isDrowsy = true;
+                }
+
+                drawCam(res.image, lm || null, isDrowsy);
+
+                if (!isCalib) {
+                    const t = Date.now(); let drowsySecs = 0;
+                    if (isDrowsy) {
+                        if (!drowsyStart) { drowsyStart = t; alertLogged = false; }
+                        drowsySecs = (t - drowsyStart) / 1000;
+                        if (drowsySecs >= ALERT_SECS) {
+                            startAlarm();
+                            if (!alertLogged) {
+                                alertLogged = true; totalAlerts++;
+                                const ts = new Date().toTimeString().slice(0, 8);
+                                alertLog.push(`[${ts}]  Alert #${totalAlerts}  (EAR)`);
+                            }
+                        }
+                    } else {
+                        if (drowsyStart) stopAlarm();
+                        drowsyStart = null; drowsySecs = 0; alertLogged = false;
+                    }
+                    updateUI(isDrowsy, drowsySecs, earVal);
+                }
+            });
+
+            const cam = new Camera(video, {
+                onFrame: async () => { await fm.send({ image: video }); },
+                width: 640, height: 480
+            });
+
+            cam.start()
+                .then(() => { sessStart = Date.now(); startCal(); })
+                .catch(() => {
+                    alert(
+                        'Webcam access failed.\n\n' +
+                        'Fix: Run a local server first:\n' +
+                        '  python -m http.server\n' +
+                        'Then open: http://localhost:8000/drowsiness_web.html'
+                    );
+                });
+        }
+
+        // ── SIZE GRAPH CANVAS ─────────────────────────────────────────────────────
+        function sizeGraphCanvas() {
+            const c = document.getElementById('graphCanvas');
+            const w = document.getElementById('graph-wrap').clientWidth;
+            c.width = w; c.height = 90;
+        }
+
+        // ── ENTRY ─────────────────────────────────────────────────────────────────
+        function startSystem() {
+            document.getElementById('start-overlay').classList.add('hidden');
+            try { getAudio(); } catch (e) { }  // unlock AudioContext on user gesture
+            sizeGraphCanvas();
+            initMP();
+        }
+
+        // ESC stops alarm
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') stopAlarm();
+        });
+        window.addEventListener('resize', sizeGraphCanvas);
+    </script>
+</body>
+
+</html>

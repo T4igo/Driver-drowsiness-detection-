@@ -1,0 +1,7 @@
+timm
+opencv-python
+numpy
+torch
+torchvision
+mediapipe==0.10.14
+pygame
